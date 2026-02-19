@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -32,6 +33,21 @@ func init() {
 		log.Fatalf("error creating table: %v", err)
 	}
 
+	var count int
+
+	countQuery := `
+		SELECT COUNT(*) FROM todos
+		`
+
+	err = db.DB.QueryRow(countQuery).Scan(&count)
+	if err != nil {
+		log.Fatalf("error while count query: %v", err)
+	}
+
+	if count > 0 {
+		return
+	}
+
 	insertDemo := `
 		INSERT INTO todos (task) VALUES
 		('turn on pc'),
@@ -40,10 +56,29 @@ func init() {
 		('code till heart’s content');
 	`
 	_, err = db.DB.Exec(insertDemo)
-
 	if err != nil {
 		log.Fatalf("error creating table: %v", err)
 	}
+}
+
+func GetRawList() ([]*Todo, error) {
+	query := `SELECT id,task,created_at from todos`
+
+	rows, err := db.DB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("getting error fetching rows : %v", err)
+	}
+	defer rows.Close()
+
+	var todo []*Todo
+	for rows.Next() {
+		var t Todo
+		if err := rows.Scan(&t.ID, &t.Task, &t.CreatedAt); err != nil {
+			log.Fatal(err)
+		}
+		todo = append(todo, &t)
+	}
+	return todo, nil
 }
 
 func GetList(page int) ([]*Todo, *Pagination) {
@@ -81,8 +116,8 @@ func GetList(page int) ([]*Todo, *Pagination) {
 
 func CreateTodo(todo *Todo) error {
 	query := `INSERT INTO todos (task,created_at) VALUES
-		(?);`
-	_, err := db.DB.Exec(query, todo.Task)
+		(?,?);`
+	_, err := db.DB.Exec(query, todo.Task, time.Now())
 	if err != nil {
 		return err
 	}
